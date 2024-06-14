@@ -1,0 +1,232 @@
+--Comprehensive Data Analysis for Pizza Store Management
+
+-- To view the data in the tables (all columns)
+SELECT * FROM order_details;  
+SELECT * FROM pizzas 
+SELECT * FROM orders  
+SELECT * FROM pizza_types;  
+
+-- To find out the total number of orders placed?
+SELECT
+	COUNT(DISTINCT order_id) AS 'Total Orders' 
+FROM 
+	orders;
+
+-- To calculate the total revenue generated from pizza sales.
+-- First let’s join the order_details and pizzas table to see the details
+
+SELECT
+	order_details.pizza_id, order_details.quantity, pizzas.price
+FROM
+	order_details 
+JOIN
+	pizzas ON pizzas.pizza_id = order_details.pizza_id
+
+
+-- to get the total revenue
+SELECT
+	cast(sum(order_details.quantity * pizzas.price) as decimal(10,2)) as 'Total Revenue'
+FROM
+	order_details 
+JOIN
+	pizzas on pizzas.pizza_id = order_details.pizza_id
+
+
+-- To find out the common pizza size ordered?
+SELECT 
+    pizzas.size, 
+    COUNT(DISTINCT order_id) AS 'No of Orders', 
+    SUM(quantity) AS 'Total Quantity Ordered'
+FROM 
+    order_details
+JOIN 
+    pizzas ON pizzas.pizza_id = order_details.pizza_id
+GROUP BY 
+    pizzas.size
+ORDER BY 
+    COUNT(DISTINCT order_id) DESC;
+
+
+-- To calculate the top 3 most ordered pizza types based on revenue
+SELECT TOP 3 
+    pizza_types.name, 
+    SUM(order_details.quantity * pizzas.price) AS 'Revenue from pizza'
+FROM 
+    order_details 
+JOIN 
+    pizzas ON pizzas.pizza_id = order_details.pizza_id
+JOIN 
+    pizza_types ON pizza_types.pizza_type_id = pizzas.pizza_type_id
+GROUP BY 
+    pizza_types.name
+ORDER BY 
+    [Revenue from pizza] DESC;
+
+
+--INVENTORY MANAGEMENT
+-- Determine the distribution of orders by hour of the day.
+
+SELECT 
+    DATEPART(hour, time) AS 'Hour of the day', 
+    COUNT(DISTINCT order_id) AS 'No of Orders'
+FROM 
+    orders
+GROUP BY 
+    DATEPART(hour, time)
+ORDER BY 
+    [No of Orders] DESC;
+
+
+-- Determining the ingredients that are most frequently used and should be stocked more regularly
+-- Step 1: Create a CTE to split the ingredients
+
+WITH IngredientCTE AS (
+    SELECT
+        pt.pizza_type_id,
+        pt.name,
+        LTRIM(RTRIM(value)) AS ingredient
+    FROM 
+        pizza_types pt
+    CROSS APPLY STRING_SPLIT(pt.ingredients, ',')
+)
+
+-- Step 2: Join the split ingredients with order details and calculate usage
+SELECT
+    ic.ingredient,
+    SUM(od.quantity) AS ingredient_usage
+FROM
+    IngredientCTE ic
+JOIN
+    pizzas p ON ic.pizza_type_id = p.pizza_type_id
+JOIN
+    order_details od ON p.pizza_id = od.pizza_id
+GROUP BY
+    ic.ingredient
+ORDER BY
+    ingredient_usage DESC;
+
+
+-- To check for any seasonal trends in pizza demand
+-- Aggregating the data by month to see the total number of pizzas ordered each month.
+
+SELECT
+    DATEPART(YEAR, date) AS Year,
+    DATEPART(MONTH, date) AS Month,
+    SUM(order_details.quantity) AS TotalPizzasOrdered
+FROM
+    orders
+JOIN
+    order_details ON orders.order_id = order_details.order_id
+GROUP BY
+    DATEPART(YEAR, date),
+    DATEPART(MONTH, date)
+ORDER BY
+    Year, Month;
+
+
+ --Checking for trends per quarter
+
+SELECT
+    DATEPART(YEAR, date) AS Year,
+    DATEPART(QUARTER, date) AS Quarter,
+    SUM(order_details.quantity) AS TotalPizzasOrdered
+FROM
+    orders
+JOIN
+    order_details ON orders.order_id = order_details.order_id
+GROUP BY
+    DATEPART(YEAR, date),
+    DATEPART(QUARTER, date)
+ORDER BY
+    Year, Quarter;
+	
+
+-- Checking for trends per season (winter, summer, fall, spring)
+
+SELECT
+    DATEPART(YEAR, date) AS Year,
+    CASE 
+        WHEN DATEPART(MONTH, date) IN (12, 1, 2) THEN 'Winter'
+        WHEN DATEPART(MONTH, date) IN (3, 4, 5) THEN 'Spring'
+        WHEN DATEPART(MONTH, date) IN (6, 7, 8) THEN 'Summer'
+        WHEN DATEPART(MONTH, date) IN (9, 10, 11) THEN 'Fall'
+    END AS Season,
+    SUM(order_details.quantity) AS TotalPizzasOrdered
+FROM
+    orders
+JOIN
+    order_details ON orders.order_id = order_details.order_id
+GROUP BY
+    DATEPART(YEAR, date),
+    CASE 
+        WHEN DATEPART(MONTH, date) IN (12, 1, 2) THEN 'Winter'
+        WHEN DATEPART(MONTH, date) IN (3, 4, 5) THEN 'Spring'
+        WHEN DATEPART(MONTH, date) IN (6, 7, 8) THEN 'Summer'
+        WHEN DATEPART(MONTH, date) IN (9, 10, 11) THEN 'Fall'
+    END
+ORDER BY
+    Year, Season;
+
+
+--Customer Preferences Analysis
+--To check the top 5 most ordered pizza types along with their quantities.
+
+SELECT
+	TOP 5 pizza_types.name AS 'Pizza', SUM(quantity) AS 'Total Ordered'
+FROM
+	order_details
+JOIN
+	pizzas ON pizzas.pizza_id = order_details.pizza_id
+JOIN
+	pizza_types ON pizza_types.pizza_type_id = pizzas.pizza_type_id
+GROUP BY 
+	pizza_types.name 
+ORDER BY
+	SUM(quantity) DESC
+
+
+--To find out the total quantity of each pizza category ordered
+-- Join the necessary tables to find the total quantity of each pizza category ordered.
+
+SELECT
+	TOP 5 pizza_types.category, SUM(quantity) AS 'Total Quantity Ordered'
+FROM
+	order_details
+JOIN
+	pizzas ON pizzas.pizza_id = order_details.pizza_id
+JOIN
+	pizza_types ON pizza_types.pizza_type_id = pizzas.pizza_type_id
+GROUP BY
+	pizza_types.category 
+ORDER BY
+	SUM(quantity)  DESC
+
+
+--To find out the category-wise distribution of pizzas
+
+SELECT
+	category, COUNT(DISTINCT pizza_type_id) AS [No of pizzas]
+FROM 
+	pizza_types
+GROUP BY
+	category
+ORDER BY
+	[No of pizzas];
+
+
+--To analyze the peak hours and days for orders
+
+SELECT
+    DATENAME(WEEKDAY, date) AS DayOfWeek,
+    DATEPART(HOUR, time) AS Hour,
+    COUNT(order_id) AS NumberOfOrders
+FROM
+    orders
+GROUP BY
+    DATENAME(WEEKDAY, date),
+    DATEPART(WEEKDAY, date),
+    DATEPART(HOUR, time)
+ORDER BY
+    NumberOfOrders DESC;
+
+
